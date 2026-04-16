@@ -133,6 +133,41 @@ class TestSSHPreflight:
         assert env.user == "alice"
 
 
+class TestSCPUpload:
+    def test_scp_upload_quotes_remote_path(self, monkeypatch):
+        monkeypatch.setattr(ssh_env.shutil, "which", lambda _name: "/usr/bin/ssh")
+        monkeypatch.setattr(ssh_env.SSHEnvironment, "_establish_connection", lambda self: None)
+        monkeypatch.setattr(ssh_env.SSHEnvironment, "_detect_remote_home", lambda self: "/home/alice")
+        monkeypatch.setattr(ssh_env.SSHEnvironment, "_ensure_remote_dirs", lambda self: None)
+        monkeypatch.setattr(ssh_env.SSHEnvironment, "init_session", lambda self: None)
+        monkeypatch.setattr(
+            ssh_env, "FileSyncManager",
+            lambda **kw: type("M", (), {"sync": lambda self, **k: None})(),
+        )
+
+        calls = []
+
+        def _capture_run(cmd, **kwargs):
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        monkeypatch.setattr(ssh_env.subprocess, "run", _capture_run)
+
+        env = ssh_env.SSHEnvironment(host="example.com", user="alice")
+        env._scp_upload(
+            "/tmp/local.txt",
+            "/home/alice/.hermes/cache/doc_1234_report;touch /tmp/pwned.txt",
+        )
+
+        assert len(calls) == 2
+        scp_cmd = calls[1]
+        assert scp_cmd[0] == "scp"
+        assert (
+            scp_cmd[-1]
+            == "alice@example.com:'/home/alice/.hermes/cache/doc_1234_report;touch /tmp/pwned.txt'"
+        )
+
+
 def _setup_ssh_env(monkeypatch, persistent: bool):
     monkeypatch.setenv("TERMINAL_ENV", "ssh")
     monkeypatch.setenv("TERMINAL_SSH_HOST", _SSH_HOST)
