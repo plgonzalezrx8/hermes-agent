@@ -133,7 +133,10 @@ class SSHEnvironment(BaseEnvironment):
             scp_cmd.extend(["-P", str(self.port)])
         if self.key_path:
             scp_cmd.extend(["-i", self.key_path])
-        scp_cmd.extend([host_path, f"{self.user}@{self.host}:{remote_path}"])
+        # Quote the remote path so scp's remote shell invocation treats it as
+        # data, not executable shell syntax (e.g. ';', backticks).
+        remote_spec = f"{self.user}@{self.host}:{shlex.quote(remote_path)}"
+        scp_cmd.extend([host_path, remote_spec])
         result = subprocess.run(scp_cmd, capture_output=True, text=True, timeout=30)
         if result.returncode != 0:
             raise RuntimeError(f"scp failed: {result.stderr.strip()}")
