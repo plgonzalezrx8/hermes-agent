@@ -2627,6 +2627,12 @@ class GatewayRunner:
         if platform_allow_all_var and os.getenv(platform_allow_all_var, "").lower() in ("true", "1", "yes"):
             return True
 
+        # Email identities are derived from the SMTP/IMAP "From" header,
+        # which is unauthenticated and can be spoofed. Never authorize email
+        # senders via allowlists or pairing based on source.user_id.
+        if source.platform == Platform.EMAIL:
+            return os.getenv("GATEWAY_ALLOW_ALL_USERS", "").lower() in ("true", "1", "yes")
+
         # Check pairing store (always checked, regardless of allowlists)
         platform_name = source.platform.value if source.platform else ""
         if self.pairing_store.is_approved(platform_name, user_id):

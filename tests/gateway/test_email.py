@@ -281,6 +281,46 @@ class TestAuthorizationMaps(unittest.TestCase):
         source = inspect.getsource(gateway.run.GatewayRunner._is_user_authorized)
         self.assertIn("EMAIL_ALLOW_ALL_USERS", source)
 
+    @patch.dict(os.environ, {"EMAIL_ALLOWED_USERS": "allowed@example.com"}, clear=True)
+    def test_email_allowlist_is_not_trusted_for_auth(self):
+        """Email allowlists are ignored because From headers are spoofable."""
+        from gateway.config import Platform
+        from gateway.run import GatewayRunner
+        from gateway.session import SessionSource
+
+        runner = object.__new__(GatewayRunner)
+        runner.pairing_store = MagicMock()
+        runner.pairing_store.is_approved.return_value = True
+
+        source = SessionSource(
+            platform=Platform.EMAIL,
+            user_id="allowed@example.com",
+            chat_id="allowed@example.com",
+            user_name="Allowed User",
+            chat_type="dm",
+        )
+        self.assertFalse(runner._is_user_authorized(source))
+
+    @patch.dict(os.environ, {"GATEWAY_ALLOW_ALL_USERS": "true"}, clear=True)
+    def test_email_requires_explicit_allow_all(self):
+        """Email access is only allowed with explicit allow-all flags."""
+        from gateway.config import Platform
+        from gateway.run import GatewayRunner
+        from gateway.session import SessionSource
+
+        runner = object.__new__(GatewayRunner)
+        runner.pairing_store = MagicMock()
+        runner.pairing_store.is_approved.return_value = False
+
+        source = SessionSource(
+            platform=Platform.EMAIL,
+            user_id="anyone@example.com",
+            chat_id="anyone@example.com",
+            user_name="Anyone",
+            chat_type="dm",
+        )
+        self.assertTrue(runner._is_user_authorized(source))
+
 
 class TestSendMessageToolRouting(unittest.TestCase):
     """Verify email routing in send_message_tool."""
