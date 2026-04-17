@@ -11,7 +11,6 @@ def _would_warn():
         for v in ("TELEGRAM_ALLOWED_USERS", "DISCORD_ALLOWED_USERS",
                    "WHATSAPP_ALLOWED_USERS", "SLACK_ALLOWED_USERS",
                    "SIGNAL_ALLOWED_USERS", "SIGNAL_GROUP_ALLOWED_USERS",
-                   "EMAIL_ALLOWED_USERS",
                    "SMS_ALLOWED_USERS", "MATTERMOST_ALLOWED_USERS",
                    "MATRIX_ALLOWED_USERS", "DINGTALK_ALLOWED_USERS", "FEISHU_ALLOWED_USERS", "WECOM_ALLOWED_USERS",
                    "GATEWAY_ALLOWED_USERS")
@@ -37,8 +36,16 @@ class TestAllowlistStartupCheck:
         with patch.dict(os.environ, {"SIGNAL_GROUP_ALLOWED_USERS": "user1"}, clear=True):
             assert _would_warn() is False
 
+    def test_email_allowed_users_does_not_suppress_warning(self):
+        with patch.dict(os.environ, {"EMAIL_ALLOWED_USERS": "spoofable@example.com"}, clear=True):
+            assert _would_warn() is True
+
     def test_telegram_allow_all_users_suppresses_warning(self):
         with patch.dict(os.environ, {"TELEGRAM_ALLOW_ALL_USERS": "true"}, clear=True):
+            assert _would_warn() is False
+
+    def test_email_allow_all_users_suppresses_warning(self):
+        with patch.dict(os.environ, {"EMAIL_ALLOW_ALL_USERS": "true"}, clear=True):
             assert _would_warn() is False
 
     def test_gateway_allow_all_users_suppresses_warning(self):
