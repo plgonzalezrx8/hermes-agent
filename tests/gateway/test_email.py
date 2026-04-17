@@ -271,8 +271,13 @@ class TestAuthorizationMaps(unittest.TestCase):
         """EMAIL_ALLOWED_USERS should not be trusted for email auth."""
         import gateway.run
         import inspect
+        import re
+
         source = inspect.getsource(gateway.run.GatewayRunner._is_user_authorized)
-        self.assertNotIn('Platform.EMAIL: "EMAIL_ALLOWED_USERS"', source)
+        self.assertFalse(
+            re.search(r'Platform\.EMAIL\s*:\s*[\'\"]EMAIL_ALLOWED_USERS[\'\"]', source),
+            "EMAIL must not appear in the allowed-users map.",
+        )
 
     def test_email_in_allow_all_map(self):
         """EMAIL_ALLOW_ALL_USERS should be in platform_allow_all_map."""
@@ -357,6 +362,22 @@ class TestAuthorizationMaps(unittest.TestCase):
         self.assertIn("GATEWAY_ALLOWED_USERS is ignored", output)
         self.assertIn("From headers are spoofable", output)
 
+    @patch.dict(os.environ, {"EMAIL_ALLOWED_USERS": "allowed@example.com"}, clear=True)
+    def test_email_platform_allowlist_warning_is_emitted(self):
+        """Startup warns when EMAIL_ALLOWED_USERS is set for email auth."""
+        from gateway.config import GatewayConfig, Platform, PlatformConfig
+        from gateway.run import GatewayRunner
+
+        runner = object.__new__(GatewayRunner)
+        runner.config = GatewayConfig(platforms={Platform.EMAIL: PlatformConfig(enabled=True)})
+
+        with self.assertLogs("gateway.run", level="WARNING") as logs:
+            runner._warn_on_ineffective_email_auth_config()
+
+        output = "\n".join(logs.output)
+        self.assertIn("EMAIL_ALLOWED_USERS is ignored", output)
+        self.assertIn("From headers are spoofable", output)
+
     @patch.dict(os.environ, {"EMAIL_ALLOW_ALL_USERS": "true"}, clear=True)
     def test_email_platform_allow_all_is_honored(self):
         """Email access is allowed when EMAIL_ALLOW_ALL_USERS is enabled."""
@@ -377,9 +398,29 @@ class TestAuthorizationMaps(unittest.TestCase):
         )
         self.assertTrue(runner._is_user_authorized(source))
 
+    @patch.dict(os.environ, {}, clear=True)
+    def test_email_requires_explicit_allow_all_without_flags(self):
+        """Email access is denied unless an explicit allow-all flag is enabled."""
+        from gateway.config import Platform
+        from gateway.run import GatewayRunner
+        from gateway.session import SessionSource
+
+        runner = object.__new__(GatewayRunner)
+        runner.pairing_store = MagicMock()
+        runner.pairing_store.is_approved.return_value = False
+
+        source = SessionSource(
+            platform=Platform.EMAIL,
+            user_id="anyone@example.com",
+            chat_id="anyone@example.com",
+            user_name="Anyone",
+            chat_type="dm",
+        )
+        self.assertFalse(runner._is_user_authorized(source))
+
     @patch.dict(os.environ, {"GATEWAY_ALLOW_ALL_USERS": "true"}, clear=True)
-    def test_email_requires_explicit_allow_all(self):
-        """Email access is only allowed with explicit allow-all flags."""
+    def test_email_global_allow_all_is_honored(self):
+        """Email access is allowed when GATEWAY_ALLOW_ALL_USERS is enabled."""
         from gateway.config import Platform
         from gateway.run import GatewayRunner
         from gateway.session import SessionSource

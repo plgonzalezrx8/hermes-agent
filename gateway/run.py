@@ -76,7 +76,7 @@ _ensure_ssl_certs()
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Resolve Hermes home directory (respects HERMES_HOME override)
-from hermes_constants import get_hermes_home
+from hermes_constants import get_hermes_home, display_hermes_home
 from utils import atomic_yaml_write, is_truthy_value
 _hermes_home = get_hermes_home()
 
@@ -1824,9 +1824,10 @@ class GatewayRunner:
         if not _any_allowlist and not _allow_all:
             logger.warning(
                 "No user allowlists configured. All unauthorized users will be denied. "
-                "Set GATEWAY_ALLOW_ALL_USERS=true in ~/.hermes/.env to allow open access, "
+                "Set GATEWAY_ALLOW_ALL_USERS=true in %s/.env to allow open access, "
                 "or configure platform allowlists for non-email platforms "
-                "(e.g., TELEGRAM_ALLOWED_USERS=your_id)."
+                "(e.g., TELEGRAM_ALLOWED_USERS=your_id).",
+                display_hermes_home(),
             )
         self._warn_on_ineffective_email_auth_config()
         
