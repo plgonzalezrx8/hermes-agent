@@ -692,7 +692,19 @@ class TelegramAdapter(BasePlatformAdapter):
                 # enables cloud platforms (Fly.io, Railway) to auto-wake
                 # suspended machines on inbound HTTP traffic.
                 webhook_port = int(os.getenv("TELEGRAM_WEBHOOK_PORT", "8443"))
-                webhook_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip() or None
+                webhook_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
+                if not webhook_secret:
+                    message = (
+                        "TELEGRAM_WEBHOOK_SECRET must be set when TELEGRAM_WEBHOOK_URL is enabled."
+                    )
+                    logger.error("[%s] %s", self.name, message)
+                    self._set_fatal_error(
+                        "telegram_webhook_secret_missing",
+                        message,
+                        retryable=False,
+                    )
+                    await self._notify_fatal_error()
+                    return False
                 from urllib.parse import urlparse
                 webhook_path = urlparse(webhook_url).path or "/telegram"
 
